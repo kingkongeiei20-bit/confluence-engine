@@ -1,0 +1,14 @@
+firebase_credentials.json
+# Firebase Secrets
+firebase_credentials.json
+
+# Python Virtual Environment
+.venv/
+venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Data (ไม่ต้อง push ไฟล์ข้อมูลขึ้น git)
+data/*.csv

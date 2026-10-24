@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Confluence · เครื่องวิเคราะห์การเทรด</title>
+<!-- ตั้งธีมก่อนวาดหน้า กันจอกระพริบ -->
+<script>(function(){try{var t=localStorage.getItem('cta-theme')||'system';var r=t==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;document.documentElement.setAttribute('data-theme',r);}catch(e){}})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500;600&family=Noto+Sans+Thai:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js" defer></script>
+<script>
+  // ตั้งค่าได้ตรงนี้ (ไม่ต้องแก้ app.js)
+  window.CONFIG = {
+    symbols: ['XAUUSD'],        // เช่น ['XAUUSD','EURUSD','BTCUSD']
+    source: 'binance',          // 'binance' | 'fastapi' (ค่าเริ่มต้นครั้งแรก ผู้ใช้สลับได้ในเมนูสถานะ)
+    apiBase: 'http://127.0.0.1:8000',                // ว่าง = ใช้เครื่องเดียวกับหน้าเว็บ (เมื่อเปิดจาก localhost) หรือ http://localhost:8000
+    refreshMin: 15
+  };
+</script>
+<script src="app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">✶</div>
+    <div><b>Confluence</b><small>เครื่องวิเคราะห์การเทรด</small></div>
+  </div>
+  <div class="grow"></div>
+  <div class="dd" id="eng-dd">
+    <button class="eng-btn" id="eng-btn" data-act="eng-menu" aria-haspopup="menu" aria-expanded="false" aria-label="ตั้งค่าการวิเคราะห์">
+      <span class="dot" id="eng-dot"></span>
+      <span id="eng-text" role="status">—</span>
+      <span id="eng-chev"></span>
+      <span class="run-line" id="eng-line" hidden></span>
+    </button>
+    <div class="menu right" id="eng-menu" role="menu" hidden></div>
+  </div>
+  <button class="btn btn-primary" id="run-btn" data-act="run"></button>
+  <button class="btn btn-secondary btn-icon" id="theme-btn" data-act="theme"></button>
+  <div class="avatar" aria-label="บัญชี">NK</div>
+</header>
+
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="เมนูหลัก"></nav>
+
+  <main id="main">
+    <!-- โหลด / ว่าง / ผิดพลาด -->
+    <section id="v-state" hidden></section>
+
+    <!-- แดชบอร์ด -->
+    <section id="v-dash" hidden>
+      <div class="page">
+        <div class="page-head">
+          <div><div class="kicker" id="today"></div><h1>ฟีดสัญญาณ</h1></div>
+          <span class="muted sm" id="dash-last"></span>
+        </div>
+        <div id="stale"></div>
+
+        <div class="bp">
+          <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+          <div class="chart-head">
+            <div class="dd" id="sym-dd">
+              <button class="sym-btn" data-act="sym-menu" aria-haspopup="listbox" aria-expanded="false" aria-label="เลือกสินทรัพย์"><span id="sym-label">—</span><span id="sym-chev"></span></button>
+              <div class="menu left" id="sym-menu" role="listbox" hidden></div>
+            </div>
+            <span class="num" style="font-size:28px" id="chart-price">—</span>
+            <span class="muted xs" id="chart-time"></span>
+            <div class="grow"></div>
+            <div class="legend">
+              <span><i style="border-color:var(--acc)"></i>เข้า</span>
+              <span><i style="border-color:var(--bear)"></i>SL</span>
+              <span><i style="border-color:var(--bull)"></i>TP</span>
+              <span><i style="border-color:var(--t2);border-top-style:dashed"></i>แนวรับ/ต้าน</span>
+            </div>
+            <button class="btn btn-ghost btn-icon" id="freeze-btn" data-act="freeze" aria-label="ฟรีซกราฟไปวาด" title="ฟรีซกราฟ · ไปวาดในสมุดวาดกราฟ"></button>
+            <div class="seg" id="tf-group" role="group" aria-label="กรอบเวลา"></div>
+          </div>
+          <div class="chart-body" role="img" aria-label="กราฟแท่งเทียนพร้อมเส้นเข้า SL TP แนวรับ แนวต้าน">
+            <div id="chart"></div>
+            <div class="chart-msg" id="chart-msg">กำลังโหลดแท่งเทียน…</div>
+          </div>
+          <div class="chart-foot"><span id="candle-src"></span><span>ระดับราคาบนกราฟมาจากแหล่งสัญญาณ</span></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="bp">
+            <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+            <div class="card-head"><span class="h">สัญญาณล่าสุด</span><span class="muted xs">กด [ ] เพื่อสลับ</span></div>
+            <div id="sig-list"></div>
+          </div>
+          <div class="bp pad" id="preview"></div>
+        </div>
+
+        <div class="bp">
+          <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+          <div class="card-head"><span class="h">ประวัติการวิเคราะห์</span><span class="muted xs" id="hist-count"></span></div>
+          <div id="hist"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- รายละเอียดสัญญาณ -->
+    <section id="v-detail" hidden></section>
+
+    <!-- ห้องโหร -->
+    <section id="v-oracle" hidden>
+      <canvas id="stars" aria-hidden="true"></canvas>
+      <div class="page oracle" id="oracle"></div>
+    </section>
+
+    <!-- สมุดวาดกราฟ -->
+    <section id="v-sketch" hidden>
+      <div class="page">
+        <div class="page-head" style="align-items:center">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-ghost" data-act="go:dash" id="sk-back"></button>
+            <div><h1 style="font-size:26px">สมุดวาดกราฟ</h1><div class="muted sm" id="sk-meta"></div></div>
+          </div>
+          <div style="display:flex;gap:8px" id="sk-head-actions"></div>
+        </div>
+
+        <div class="bp" id="sk-empty" hidden style="padding:48px 32px">
+          <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+          <div class="state-box center" style="margin:0 auto">
+            <div id="sk-empty-ic" style="width:44px;height:44px;border:1px solid var(--bd-x);display:grid;place-items:center;color:var(--acc)"></div>
+            <div style="font:600 24px var(--font-heading)">ยังไม่มีกราฟที่ฟรีซไว้</div>
+            <div class="muted" style="font-size:14px;max-width:420px">กดปุ่ม ❄ ที่หัวกราฟในหน้าฟีดสัญญาณ ระบบจะเก็บภาพกราฟ ณ ตอนนั้นมาให้วาดเขียนที่นี่</div>
+            <button class="btn" data-act="go:dash">ไปที่กราฟ</button>
+          </div>
+        </div>
+
+        <div id="sk-main" hidden style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div class="seg tools" id="sk-tools" role="toolbar" aria-label="เครื่องมือวาด"></div>
+            <div style="flex-basis:100%;height:0"></div>
+            <div class="swatches" id="sk-colors" role="radiogroup" aria-label="สี"></div>
+            <div class="seg widths" id="sk-widths" role="radiogroup" aria-label="ความหนาเส้น"></div>
+            <div class="grow"></div>
+            <div class="seg">
+              <button data-act="undo" id="sk-undo" title="ย้อนกลับ (⌘Z)" style="height:34px;display:flex;align-items:center;gap:6px"></button>
+              <button data-act="redo" id="sk-redo" title="ทำซ้ำ (⌘⇧Z)" style="height:34px;display:flex;align-items:center;gap:6px"></button>
+            </div>
+            <button class="btn btn-icon" data-act="dup" id="sk-dup" aria-label="ทำสำเนา" title="ทำสำเนาสิ่งที่เลือก (⌘D)"></button>
+            <button class="btn btn-icon" data-act="del" id="sk-del" aria-label="ลบสิ่งที่เลือก" title="ลบสิ่งที่เลือก (Delete)"></button>
+            <button class="btn btn-ghost" data-act="clear">ล้างทั้งหมด</button>
+          </div>
+          <div class="bp">
+            <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+            <div id="fabric-host"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="muted xs nowrap" id="sk-count"></span>
+            <div class="shots" id="sk-shots"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ยังไม่ทำ -->
+    <section id="v-soon" hidden></section>
+  </main>
+</div>
+
+<nav class="tabbar" id="tabbar" aria-label="แท็บ"></nav>
+<div class="toast" id="toast" role="status" hidden></div>
+
+</body>
+</html>

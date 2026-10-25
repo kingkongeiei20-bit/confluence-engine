@@ -4,7 +4,7 @@
 'use strict';
 
 // ───────────────────────── config & constants
-const CFG = Object.assign({ symbols:['XAUUSD'], source:'binance', apiBase:'', refreshMin:15 }, window.CONFIG || {});
+const CFG = Object.assign({ symbols:['XAUUSD'], source:'fastapi', apiBase:'https://confluence-api-23ix.onrender.com', refreshMin:15 }, window.CONFIG || {});
 const SYMS = {
   XAUUSD: { pair:'PAXGUSDT', feed:'PAXG/USDT', name:'ทองคำ / ดอลลาร์', dp:2, pv:100 },
   EURUSD: { pair:'EURUSDT', feed:'EUR/USDT', name:'ยูโร / ดอลลาร์', dp:4, pv:100000 },
@@ -744,7 +744,7 @@ document.addEventListener('click', e => {
         case 'log': 
       const currentSignal = selSig();
       if (currentSignal) {
-        fetch('http://127.0.0.1:8000/api/journal', {
+        fetch('https://confluence-api-23ix.onrender.com/api/journal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

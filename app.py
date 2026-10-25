@@ -160,10 +160,25 @@ def cron_predict():
         
         db.collection("trade_journal").add(trade_data)
         
+                    # --- ส่วนที่แก้ไข: บันทึกและแจ้งเตือน Telegram ---
         if is_shadow:
             return {"status": "success", "message": f"Shadow Signal saved ({reject_reason})", "data": trade_data}
-        else:
-            return {"status": "success", "message": "Real Signal saved", "data": trade_data}
+        
+        # 🌟 ส่งข้อความแจ้งเตือน Telegram (ทำงานเมื่อไม่ใช่ shadow)
+        alert_msg = (
+            f"🚨 <b>พบสัญญาณเทรดใหม่!</b>\n\n"
+            f"🪙 <b>{symbol}</b> ({direction.upper()}) | เกรด {signal.grade}\n"
+            f"💰 Entry: {current_price:.2f}\n"
+            f"🛑 SL: {sl:.2f}\n"
+            f"🎯 TP: {tp:.2f}\n"
+            f"📊 Tech Score: {tech.score:.1f}"
+        )
+        send_telegram_alert(alert_msg)
+        
+        return {"status": "success", "message": "Real Signal saved & Alert Sent", "data": trade_data}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -274,3 +289,20 @@ def get_journal():
         return {"status": "success", "data": trades}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- ตั้งค่า Telegram Bot ---
+TELEGRAM_BOT_TOKEN = "8955577920:AAGYKHN_pfd0U24Abn9OML02TIcvOazE7IM"
+TELEGRAM_CHAT_ID = "8987261448"
+
+def send_telegram_alert(message: str):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML"
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+        print("📩 ส่งข้อความ Telegram สำเร็จ")
+    except Exception as e:
+        print(f"⚠️ ส่งข้อความ Telegram ไม่สำเร็จ: {e}")

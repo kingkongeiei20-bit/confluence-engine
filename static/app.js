@@ -4,7 +4,7 @@
 'use strict';
 
 // ───────────────────────── config & constants
-const CFG = Object.assign({ symbols:['XAUUSD'], source:'fastapi', apiBase:'', refreshMin:15 }, window.CONFIG || {});
+const CFG = Object.assign({ symbols:['XAUUSD'], source:'fastapi', apiBase:'http://141.11.33.121:8000', refreshMin:15 }, window.CONFIG || {});
 const SYMS = {
   XAUUSD: { pair:'PAXGUSDT', feed:'PAXG/USDT', name:'ทองคำ / ดอลลาร์', dp:2, pv:100 },
   EURUSD: { pair:'EURUSDT', feed:'EUR/USDT', name:'ยูโร / ดอลลาร์', dp:4, pv:100000 },

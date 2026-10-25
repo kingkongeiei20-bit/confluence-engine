@@ -61,6 +61,35 @@ def get_m1_high_low(symbol="PAXGUSDT"):
         print(f"Error fetching M1 data: {e}")
         return None, None, None
 
+# --- API สำหรับดึงสัญญาณไปโชว์ที่ Dashboard ---
+@app.get("/api/signal")
+def get_latest_signal(symbol: str = "XAUUSD"):
+    try:
+        # ดึงข้อมูลล่าสุด
+        df = get_live_data(symbol="PAXGUSDT", interval="5m", limit=500)
+        if df is None or df.empty:
+            raise HTTPException(status_code=500, detail="ไม่สามารถดึงข้อมูลราคาได้")
+
+        latest_window = df.iloc[-300:]
+        tech = compute_tech_score(latest_window)
+        signal = generate_signal(symbol, latest_window['datetime'].iloc[-1], tech)
+        
+        return {
+            "symbol": symbol,
+            "current_price": float(df['close'].iloc[-1]),
+            "timestamp": latest_window['datetime'].iloc[-1].strftime("%Y-%m-%d %H:%M"),
+            "grade": signal.grade,
+            "state": signal.state,
+            "composite_score": signal.composite_score,
+            "tech_score": tech.score,
+            "eso_score": signal.eso.score,
+            "archetype": signal.eso.archetype,
+            "key_levels": tech.key_levels,
+            "component_scores": tech.component_scores
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 # --- 4. Scanner: ระบบสแกนสัญญาณและบันทึก (รวม Shadow Signals) ---
 @app.get("/api/cron_predict")
 def cron_predict():
@@ -224,5 +253,24 @@ def cron_check_outcome():
                 })
 
         return {"status": "success", "checked": len(trades_list), "closed": closed_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- 6. API สำหรับดึงข้อมูลประวัติการเทรด (Journal) ---
+@app.get("/api/journal")
+def get_journal():
+    if not db: raise HTTPException(status_code=500, detail="Firebase not configured")
+    try:
+        # ดึงข้อมูล 100 รายการล่าสุด เรียงจากใหม่ไปเก่า
+        trades_ref = db.collection("trade_journal").order_by("timestamp_open", direction=firestore.Query.DESCENDING).limit(100)
+        docs = trades_ref.stream()
+        
+        trades = []
+        for doc in docs:
+            data = doc.to_dict()
+            data['id'] = doc.id
+            trades.append(data)
+            
+        return {"status": "success", "data": trades}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

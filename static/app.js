@@ -4,7 +4,7 @@
 'use strict';
 
 // ───────────────────────── config & constants
-const CFG = Object.assign({ symbols:['XAUUSD'], source:'fastapi', apiBase:'https://confluence-api-23ix.onrender.com', refreshMin:15 }, window.CONFIG || {});
+const CFG = Object.assign({ symbols:['XAUUSD'], source:'fastapi', apiBase:'', refreshMin:15 }, window.CONFIG || {});
 const SYMS = {
   XAUUSD: { pair:'PAXGUSDT', feed:'PAXG/USDT', name:'ทองคำ / ดอลลาร์', dp:2, pv:100 },
   EURUSD: { pair:'EURUSDT', feed:'EUR/USDT', name:'ยูโร / ดอลลาร์', dp:4, pv:100000 },
@@ -61,6 +61,7 @@ const ICONS = {
   slash:'<path d="M19 5 5 19"/>', minus:'<path d="M3 12h18M3 8v8M21 8v8"/>', arrowUR:'<path d="M7 7h10v10M7 17 17 7"/>',
   square:'<rect x="3" y="3" width="18" height="18"/>', type:'<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
   eraser:'<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21M22 21H7M5 11l9 9"/>',
+  ghost:'<path d="M9 10h.01M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/>',
   undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', redo:'<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
   trash:'<path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>'
@@ -73,7 +74,7 @@ const S = {
   screen:'dash', soon:'', sel:null, theme: ls.get('cta-theme-v', 'system'), resolved:'dark',
   data:{}, status:'idle', errMsg:'', lastOk:0, hist: ls.get('cta-history', []), running:false,
   auto: ls.get('cta-auto-v', true), ivMin: ls.get('cta-interval', CFG.refreshMin), src: ls.get('cta-src-v', CFG.source),
-  tf:'1h', csym:null, candleState:'idle', bal:'10,000', risk:'1.0',
+  tf:'1h', csym:null, candleState:'idle', bal:'10,000', risk:'1.0', rk:{ bal:'10,000', risk:'1.0', entry:'', sl:'' },
   menu:null, shots: ls.get('cta-sketch', []), shotId:null, tool:'pen', colorIx:0, widthIx:1, now:Date.now()
 };
 if (!INTERVALS.includes(S.ivMin)) S.ivMin = 15;
@@ -248,11 +249,14 @@ function renderNav() {
     `<div class="src"><span class="kicker">แหล่งข้อมูล</span><span style="display:flex;align-items:center;gap:6px;font-size:13px"><span class="dot" style="background:${$('#eng-dot').style.background}"></span>${S.src === 'binance' ? 'Binance · คำนวณในเบราว์เซอร์' : esc(apiBase().replace(/^https?:\/\//, ''))}</span><span class="muted xs">ล่าสุด ${S.lastOk ? thTime(new Date(S.lastOk)) : '—'}</span></div>`;
   $('#tabbar').innerHTML = TABS.map(([k, l, i]) => `<button data-act="go:${k}"${cur === k ? ' aria-current="page"' : ''}>${ic(i, 20)}<span>${l}</span></button>`).join('');
 }
-function show(id) { ['v-state','v-dash','v-detail','v-oracle','v-sketch','v-soon'].forEach(v => $('#' + v).hidden = v !== id); }
+function show(id) { ['v-state','v-dash','v-detail','v-oracle','v-sketch','v-journal','v-settings','v-risk','v-soon'].forEach(v => $('#' + v).hidden = v !== id); }
 
 function renderView() {
   const has = Object.keys(S.data).length > 0, scr = S.screen;
   if (scr === 'sketch') { show('v-sketch'); renderSketch(); return; }
+  if (scr === 'journal') { show('v-journal'); renderJournal(); return; }
+  if (scr === 'settings') { show('v-settings'); renderSettings(); return; }
+  if (scr === 'risk') { show('v-risk'); renderRisk(); return; }
   if (scr === 'soon') { show('v-soon'); const l = (NAV.find(n => n[0] === S.soon) || [, ''])[1];
     $('#v-soon').innerHTML = `<div class="state"><div class="state-box center"><div style="font:600 28px var(--font-heading)">${l}</div><div class="muted sm">ยังไม่มีในรอบนี้</div><button class="btn" data-act="go:dash">กลับไปที่ฟีด</button></div></div>`; return; }
   if (!has) {
@@ -624,18 +628,8 @@ function setTool(t) {
   fc.selection = t === 'select'; fc.defaultCursor = t === 'select' ? 'default' : 'crosshair';
   fc.forEachObject(o => { o.selectable = t === 'select'; o.evented = t === 'select' || t === 'eraser'; o.hoverCursor = t === 'eraser' ? 'not-allowed' : 'move'; });
   if (t !== 'select') fc.discardActiveObject();
-  
-  // 🌟 แก้ไขตรงนี้: ใช้ calcOffset + renderAll แทน requestRenderAll
-  fc.calcOffset();
-  fc.renderAll();
-  
-  if (S.screen === 'sketch') {
-    document.querySelectorAll('[data-act^="tool:"]').forEach(btn => {
-      const isActive = btn.dataset.act === `tool:${t}`;
-      btn.style.background = isActive ? 'var(--e3)' : 'transparent';
-      btn.style.color = isActive ? 'var(--t1)' : 'var(--t2)';
-    });
-  }
+  fc.requestRenderAll();
+  if (S.screen === 'sketch') renderSketch();
 }
 function setStyle(ci, wi) {
   S.colorIx = ci; S.widthIx = wi;
@@ -688,6 +682,158 @@ function dupSel() { if (!fc) return; const o = fc.getActiveObject(); if (!o) { t
     if (c.type === 'activeSelection') { c.canvas = fc; c.forEachObject(x => fc.add(x)); c.setCoords(); } else fc.add(c);
     silent = false; fc.setActiveObject(c); fc.requestRenderAll(); pushHist(); }); }
 
+// ───────────────────────── journal (GET /api/journal → json.data[])
+const J = { status:'idle', rows:[], err:'', at:0 };
+let jSeq = 0;
+async function fetchJournal() {
+  const seq = ++jSeq; J.status = 'loading'; if (S.screen === 'journal') renderJournal();
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 10000);
+  try {
+    const r = await fetch(`${apiBase()}/api/journal`, { headers:{ Accept:'application/json' }, signal:ctl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const json = await r.json();
+    if (!json || !Array.isArray(json.data)) throw new Error('รูปแบบข้อมูลไม่ตรง (ไม่พบ json.data เป็น Array)');
+    if (seq !== jSeq) return;
+    J.rows = json.data; J.status = 'ok'; J.err = ''; J.at = Date.now();
+  } catch (e) {
+    if (seq !== jSeq) return;
+    J.status = 'error';
+    J.err = e.name === 'AbortError' ? 'หมดเวลา 10 วินาที' : e.message === 'Failed to fetch' ? 'Failed to fetch (เซิร์ฟเวอร์ไม่ตอบ หรือถูก CORS บล็อก)' : e.message;
+  } finally { clearTimeout(to); }
+  if (S.screen === 'journal') renderJournal();
+}
+const jTime = ts => { if (!ts) return '—'; const d = new Date(ts); if (isNaN(d)) return '—';
+  return d.toLocaleDateString('th-TH', { day:'numeric', month:'short', timeZone:'Asia/Bangkok' }) + ' ' + thTime(d); };
+const jPx = (v, sym) => typeof v === 'number' ? fmt(v, symInfo(sym).dp) : '—';
+const jR = v => typeof v === 'number' ? (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2) + 'R' : '—';
+const jSide = t => String(t).toLowerCase() === 'short' ? '<span style="color:var(--bear);font-weight:500">▼ Short</span>' : '<span style="color:var(--bull);font-weight:500">▲ Long</span>';
+const jShadow = on => on ? `<span class="tag" title="ไม้เงา · บันทึกเพื่อทดสอบ ไม่ได้เข้าเทรดจริง" style="color:var(--t2)">${ic('ghost', 12)}Shadow</span>` : '';
+const jRes = r => { const k = String(r || '').toUpperCase();
+  const m = { WIN:['ชนะ','var(--bull)','check'], LOSS:['แพ้','var(--bear)','x'], TIMEOUT:['หมดเวลา','var(--t2)','clock'] }[k];
+  return m ? `<span style="display:inline-flex;align-items:center;gap:4px;color:${m[1]};font-weight:500">${ic(m[2], 14)}${m[0]}</span>` : '<span class="muted">—</span>'; };
+function renderJournal() {
+  $('#j-src').textContent = 'GET ' + apiBase().replace(/^https?:\/\//, '') + '/api/journal';
+  $('#j-last').textContent = J.at ? 'อัปเดต ' + thTime(new Date(J.at)) : '';
+  const rb = $('#j-reload'); rb.disabled = J.status === 'loading'; rb.innerHTML = ic(J.status === 'loading' ? 'clock' : 'refresh') + (J.status === 'loading' ? 'กำลังโหลด…' : 'โหลดใหม่');
+  const body = $('#j-body');
+  if (J.status === 'error' && !J.rows.length) {
+    body.innerHTML = `<div class="bp" style="padding:28px 32px;display:flex;flex-direction:column;gap:12px;max-width:640px">${CORNERS}
+      <div style="display:flex;align-items:center;gap:10px;color:var(--bear)">${ic('wifiOff', 20)}<span style="font:600 22px var(--font-heading);color:var(--t1)">ดึงสมุดเทรดไม่ได้</span></div>
+      <div class="sm" style="color:var(--t2)">ตรวจว่า FastAPI รันอยู่และมี endpoint /api/journal</div>
+      <div class="code">GET ${esc(apiBase())}/api/journal · ${esc(J.err)}</div>
+      <div><button class="btn btn-primary" data-act="j-reload">${ic('refresh')}ลองใหม่</button></div></div>`;
+    return;
+  }
+  if (J.status !== 'ok' && !J.rows.length) {
+    body.innerHTML = `<div style="display:flex;flex-direction:column;gap:20px" role="status" aria-label="กำลังโหลด"><div class="grid-3">${'<div class="skel" style="height:150px"></div>'.repeat(3)}</div><div class="skel" style="height:260px"></div></div>`;
+    return;
+  }
+  if (!J.rows.length) {
+    body.innerHTML = `<div class="bp" style="padding:48px 32px">${CORNERS}<div class="state-box center" style="margin:0 auto">
+      <div style="width:44px;height:44px;border:1px solid var(--bd-x);display:grid;place-items:center;color:var(--acc)">${ic('book', 20)}</div>
+      <div style="font:600 24px var(--font-heading)">ยังไม่มีประวัติการเทรดในระบบ</div></div></div>`;
+    return;
+  }
+  const byTime = k => (a, b) => (Date.parse(b[k]) || 0) - (Date.parse(a[k]) || 0);
+  const open = J.rows.filter(r => String(r.status).toUpperCase() === 'OPEN').sort(byTime('timestamp_open'));
+  const closed = J.rows.filter(r => String(r.status).toUpperCase() === 'CLOSED').sort(byTime('timestamp_close'));
+  const lv = (l, v, c) => `<div style="display:flex;flex-direction:column;gap:2px"><span class="muted xs">${l}</span><b style="font:500 18px var(--font-heading);color:${c}">${v}</b></div>`;
+  const th = 'text-align:left;font:600 12px var(--font-heading);color:var(--t3);padding:10px 12px;border-bottom:1px solid var(--bd);white-space:nowrap';
+  const td = 'padding:10px 12px;border-top:1px solid var(--bd-s);white-space:nowrap';
+  body.innerHTML = `
+    ${J.status === 'error' ? `<div class="banner warn" style="margin-bottom:20px"><span class="ic">${ic('alert')}</span><span class="grow">โหลดใหม่ไม่สำเร็จ (${esc(J.err)}) · กำลังแสดงข้อมูลเดิม</span></div>` : ''}
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card-title"><span class="h">ไม้ที่กำลังเปิดอยู่</span><span class="muted xs">OPEN · ${open.length}</span></div>
+      ${open.length ? `<div class="grid-3">${open.map(r => `
+        <div class="bp card">${CORNERS}
+          <div style="display:flex;align-items:center;gap:10px">${'ABCDF'.includes(r.grade) && r.grade ? gradeHTML(r.grade) : ''}
+            <div class="grow"><div style="font-size:16px;font-weight:600">${esc(r.symbol)}</div><div class="sm">${jSide(r.type)}</div></div>${jShadow(r.is_shadow)}</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${lv('เข้า', jPx(r.entry_price, r.symbol), 'var(--t1)')}${lv('SL', jPx(r.sl, r.symbol), 'var(--bear)')}${lv('TP', jPx(r.tp, r.symbol), 'var(--bull)')}</div>
+          <div class="row xs muted"><span>เปิดเมื่อ ${jTime(r.timestamp_open)}</span><span>#${esc(r.id)}</span></div>
+        </div>`).join('')}</div>`
+      : '<div class="bp" style="padding:16px">' + CORNERS + '<span class="muted sm">ไม่มีไม้ที่เปิดอยู่</span></div>'}
+    </div>
+    <div class="bp" style="margin-top:24px">${CORNERS}
+      <div class="card-head"><span class="h">ประวัติที่ปิดแล้ว</span><span class="muted xs">CLOSED · ${closed.length}</span></div>
+      ${closed.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums">
+        <thead><tr>${['ปิดเมื่อ','สินทรัพย์','ฝั่ง','เกรด','เข้า','SL','TP','ออก','ผล','R','MFE / MAE',''].map((h, i) => `<th style="${th}${i >= 4 && i <= 7 || i === 9 ? ';text-align:right' : ''}">${h}</th>`).join('')}</tr></thead>
+        <tbody>${closed.map(r => { const rc = r.r_multiple > 0 ? 'var(--bull)' : r.r_multiple < 0 ? 'var(--bear)' : 'var(--t2)';
+          return `<tr>
+            <td style="${td};color:var(--t2)" title="เปิดเมื่อ ${jTime(r.timestamp_open)}">${jTime(r.timestamp_close)}</td>
+            <td style="${td};font-weight:500">${esc(r.symbol)}</td><td style="${td}">${jSide(r.type)}</td>
+            <td style="${td}">${'ABCDF'.includes(r.grade) && r.grade ? gradeHTML(r.grade, 'sm') : '—'}</td>
+            <td style="${td};text-align:right">${jPx(r.entry_price, r.symbol)}</td><td style="${td};text-align:right;color:var(--t2)">${jPx(r.sl, r.symbol)}</td>
+            <td style="${td};text-align:right;color:var(--t2)">${jPx(r.tp, r.symbol)}</td><td style="${td};text-align:right">${jPx(r.exit_price, r.symbol)}</td>
+            <td style="${td}">${jRes(r.result)}</td>
+            <td style="${td};text-align:right;color:${rc};font:500 17px var(--font-heading)">${jR(r.r_multiple)}</td>
+            <td style="${td};font-size:13px"><span style="color:var(--bull)">${typeof r.mfe_r === 'number' ? '+' + r.mfe_r.toFixed(2) : '—'}</span><span class="muted"> / </span><span style="color:var(--bear)">${typeof r.mae_r === 'number' ? '−' + Math.abs(r.mae_r).toFixed(2) : '—'}</span></td>
+            <td style="${td}">${jShadow(r.is_shadow)}</td></tr>`; }).join('')}</tbody></table></div>`
+      : '<div class="empty-row">ยังไม่มีไม้ที่ปิดแล้ว</div>'}
+    </div>`;
+}
+
+// ───────────────────────── settings
+function renderSettings() {
+  const seg = (items, cur, act) => '<div class="seg lg" role="group">' + items.map(([v, l, i]) => '<button data-act="' + act + ':' + v + '" aria-pressed="' + (cur === v) + '">' + (i ? ic(i, 14) : '') + l + '</button>').join('') + '</div>';
+  const card = (title, rows) => '<div class="bp card">' + CORNERS + '<div class="card-title"><span class="h">' + title + '</span></div><div>' + rows + '</div></div>';
+  const row = (b, sub, ctl) => '<div class="set-row"><div class="lbl"><b>' + b + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>' + ctl + '</div>';
+  const skN = S.shots.length;
+  $('#v-settings').innerHTML = '<div class="page">' +
+    '<div class="page-head"><div><div class="kicker">ค่าทั้งหมดบันทึกในเบราว์เซอร์นี้</div><h1>ตั้งค่า</h1></div></div>' +
+    '<div class="grid-2">' +
+    card('การแสดงผล', row('ธีม', 'ตามระบบ = เปลี่ยนตามการตั้งค่าของเครื่อง', seg([['light','สว่าง','sun'],['dark','มืด','moon'],['system','ตามระบบ','']], S.theme, 'theme-set'))) +
+    card('การวิเคราะห์',
+      row('แหล่งข้อมูล', S.src === 'binance' ? 'ราคาจริงจาก Binance · คำนวณคะแนนในเบราว์เซอร์' : 'GET ' + esc(apiBase()) + '/api/signal', seg([['binance','Binance'],['fastapi','FastAPI']], S.src, 'src')) +
+      row('รอบการวิเคราะห์', 'ใช้เมื่อเปิดวิเคราะห์อัตโนมัติ', seg(INTERVALS.map(v => [String(v), v === 60 ? '1 ชม.' : v + ' นาที']), String(S.ivMin), 'iv')) +
+      row('วิเคราะห์อัตโนมัติ', S.auto ? 'เปิดอยู่ · ทุก ' + (S.ivMin === 60 ? '1 ชั่วโมง' : S.ivMin + ' นาที') : 'ปิดอยู่ · กด "วิเคราะห์ตอนนี้" เอง',
+        '<button class="toggle" data-act="auto" role="switch" aria-checked="' + S.auto + '"><span class="switch' + (S.auto ? ' on' : '') + '"><i></i></span>' + (S.auto ? 'เปิด' : 'ปิด') + '</button>')) +
+    card('ข้อมูลในเครื่อง', row('สมุดวาดกราฟ', skN ? 'มีภาพที่ฟรีซไว้ ' + skN + ' ภาพ พร้อมรอยวาด' : 'ไม่มีภาพที่ฟรีซไว้',
+      '<button class="btn" data-act="sk-clear"' + (skN ? '' : ' disabled') + '>' + ic('trash') + 'ล้างข้อมูลสมุดวาดกราฟ</button>')) +
+    '</div></div>';
+}
+function clearSketches() {
+  if (!S.shots.length || !confirm('ลบภาพที่ฟรีซไว้ทั้งหมด ' + S.shots.length + ' ภาพ? ย้อนกลับไม่ได้')) return;
+  try { localStorage.removeItem('cta-sketch'); } catch (e) {}
+  S.shots = []; S.shotId = null;
+  if (fc) { silent = true; fc.clear(); silent = false; hist = []; redoStack = []; fc._shotId = null; }
+  renderSettings(); toast('ล้างข้อมูลสมุดวาดกราฟแล้ว');
+}
+
+// ───────────────────────── risk calculator (XAUUSD: 1 lot = 100 oz)
+function riskCalc() {
+  const bal = num(S.rk.bal), risk = num(S.rk.risk), entry = num(S.rk.entry), sl = num(S.rk.sl);
+  const dist = Math.abs(entry - sl), loss = bal * (risk / 100), ok = entry > 0 && sl > 0 && dist > 0 && loss > 0;
+  return { ok, dist, loss, lot: ok ? loss / (dist * 100) : 0, side: sl < entry ? 'Long · SL ต่ำกว่าราคาเข้า' : 'Short · SL สูงกว่าราคาเข้า' };
+}
+function renderRisk() {
+  const d = S.data.XAUUSD;
+  if (!S.rk.entry && d) { S.rk.entry = fmt(d.current_price, 2); S.rk.sl = fmt(d.current_price - SL_OFF, 2); }
+  const f = (k, l, sub) => '<label class="field" style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;color:var(--t2)">' + l + (sub ? ' <span class="muted xs">' + sub + '</span>' : '') + '</span><input class="input" style="height:44px;font-size:18px" inputmode="decimal" autocomplete="off" data-rk="' + k + '" value="' + esc(S.rk[k]) + '"></label>';
+  $('#v-risk').innerHTML = '<div class="page">' +
+    '<div class="page-head"><div><div class="kicker">XAUUSD · 1 ล็อต = 100 ออนซ์</div><h1>คำนวณความเสี่ยง</h1></div>' +
+    (d ? '<button class="btn" data-act="rk-now">' + ic('refresh') + 'ใช้ราคาปัจจุบัน ' + fmt(d.current_price, 2) + '</button>' : '') + '</div>' +
+    '<div class="grid-2">' +
+      '<div class="bp card" style="gap:16px">' + CORNERS + '<div class="card-title"><span class="h">ข้อมูลไม้</span></div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' + f('bal', 'ยอดเงิน', 'USD') + f('risk', 'ความเสี่ยง', '%') + f('entry', 'ราคาเข้า', '') + f('sl', 'จุดตัดขาดทุน (SL)', '') + '</div>' +
+        '<div class="muted xs" id="rk-side"></div></div>' +
+      '<div class="bp" style="padding:28px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;min-height:320px">' + CORNERS +
+        '<span class="kicker">ขนาดล็อตที่แนะนำ</span><div class="big-lot" id="rk-lot">—</div>' +
+        '<div class="stats" style="width:100%;max-width:520px"><div><span>เงินที่ยอมเสีย</span><b id="rk-loss">—</b></div><div><span>ระยะ SL</span><b id="rk-dist">—</b></div><div><span>ความเสี่ยง</span><b id="rk-pct">—</b></div></div>' +
+        '<div class="muted xs" style="text-align:center">ล็อต = เงินที่ยอมเสีย ÷ (ระยะ SL × 100)</div></div>' +
+    '</div></div>';
+  updateRisk();
+}
+function updateRisk() {
+  const c = riskCalc(), lot = $('#rk-lot'); if (!lot) return;
+  lot.textContent = c.ok ? (c.lot >= 100 ? fmt(c.lot, 0) : c.lot.toFixed(2)) : '—';
+  lot.style.color = c.ok ? 'var(--acc)' : 'var(--t3)';
+  $('#rk-loss').textContent = c.loss > 0 ? '$' + fmt(c.loss, 2) : '—';
+  $('#rk-dist').textContent = c.dist > 0 ? fmt(c.dist, 2) : '—';
+  $('#rk-pct').textContent = num(S.rk.risk) > 0 ? num(S.rk.risk) + '%' : '—';
+  $('#rk-side').textContent = c.ok ? c.side : 'กรอกราคาเข้าและ SL ที่ไม่เท่ากัน';
+}
+function rkUseNow() { const d = S.data.XAUUSD; if (!d) return; S.rk.entry = fmt(d.current_price, 2); S.rk.sl = fmt(d.current_price - SL_OFF, 2); renderRisk(); }
+
 // ───────────────────────── theme
 const resolveTheme = t => t === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t;
 function applyTheme(t) {
@@ -709,8 +855,9 @@ let toastT = 0;
 function toast(msg) { const t = $('#toast'); t.innerHTML = `<span class="ic">${ic('check')}</span>${esc(msg)}`; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2400); }
 function go(scr) {
   if (fc && S.screen === 'sketch' && scr !== 'sketch') saveShot();
-  if (['dash','detail','oracle','sketch'].includes(scr)) { S.screen = scr; S.soon = ''; } else { S.screen = 'soon'; S.soon = scr; }
-  S.menu = null; window.scrollTo(0, 0); render(true);
+  if (['dash','detail','oracle','sketch','journal','settings','risk'].includes(scr)) { S.screen = scr; S.soon = ''; } else { S.screen = 'soon'; S.soon = scr; }
+  S.menu = null; $('#main').scrollTo(0, 0); render(true);
+  if (scr === 'journal') fetchJournal();
   if (scr === 'dash' && chart) setTimeout(() => chart.timeScale().fitContent(), 0);
 }
 function setSym(k) { if (S.csym === k) { S.menu = null; render(); return; } S.csym = k; S.sel = k; S.menu = null; candles = null; render(true); fetchCandles(); }
@@ -733,32 +880,18 @@ document.addEventListener('click', e => {
     case 'theme': toggleTheme(e); break;
     case 'eng-menu': S.menu = S.menu === 'eng' ? null : 'eng'; renderTop(); if (!$('#v-dash').hidden) renderDash(); break;
     case 'sym-menu': S.menu = S.menu === 'sym' ? null : 'sym'; renderTop(); renderDash(); break;
-    case 'auto': toggleAuto(); break;
+    case 'auto': toggleAuto(); if (S.screen === 'settings') renderSettings(); break;
+    case 'theme-set': applyTheme(arg); break;
+    case 'sk-clear': clearSketches(); break;
+    case 'rk-now': rkUseNow(); break;
     case 'src': setSource(arg); break;
-    case 'iv': setInterval_(+arg); break;
+    case 'iv': setInterval_(+arg); if (S.screen === 'settings') renderSettings(); break;
     case 'sym': setSym(arg); break;
     case 'tf': if (S.tf !== arg) { S.tf = arg; renderDash(); fetchCandles(); } break;
     case 'select': S.sel = arg; renderDash(); break;
     case 'open': S.sel = arg; go('detail'); break;
     case 'freeze': freeze(); break;
-        case 'log': 
-      const currentSignal = selSig();
-      if (currentSignal) {
-        fetch('https://confluence-api-23ix.onrender.com/api/journal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol: currentSignal.sym,
-            grade: currentSignal.grade,
-            action: 'enter',
-            price: currentSignal.raw.current_price
-          })
-        })
-        .then(res => res.json())
-        .then(data => toast(`บันทึกแล้ว: ${data.message}`))
-        .catch(err => toast(`บันทึกไม่สำเร็จ: ${err.message}`));
-      }
-      break;
+    case 'log': toast(`บันทึกการตัดสินใจแล้ว · ${S.sel}`); break;
     case 'alert': toast(`ตั้งแจ้งเตือนแล้ว · ${S.sel} เมื่อเกรดเปลี่ยน`); break;
     case 'ignore': toast(`ไม่สนใจ ${S.sel} ในเซสชันนี้`); go('dash'); break;
     case 'copy': copyPlan(); break;
@@ -771,12 +904,15 @@ document.addEventListener('click', e => {
     case 'del': delSel(); break;
     case 'clear': if (fc) { silent = true; fc.getObjects().slice().forEach(o => fc.remove(o)); silent = false; pushHist(); } break;
     case 'download': download(); break;
+    case 'j-reload': fetchJournal(); break;
     case 'shot': saveShot(); S.shotId = arg; renderSketch(); break;
     case 'shot-del': S.shots = S.shots.filter(x => x.id !== S.shotId); S.shotId = S.shots[0] ? S.shots[0].id : null; persistShots(); renderSketch(); toast('ลบภาพแล้ว'); break;
   }
 });
 document.addEventListener('dblclick', e => { const el = e.target.closest('[data-dbl]'); if (el) { S.sel = el.dataset.dbl.split(':')[1]; go('detail'); } });
 document.addEventListener('input', e => {
+  const rk = e.target.dataset && e.target.dataset.rk;
+  if (rk) { S.rk[rk] = e.target.value; updateRisk(); return; }
   const k = e.target.dataset && e.target.dataset.inp; if (!k) return;
   S[k] = e.target.value; const s = selSig(); if (!s) return; const c = calcPlan(s);
   $('#calc-lot').textContent = c.lot; $('#calc-loss').textContent = c.loss;

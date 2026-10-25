@@ -16,11 +16,11 @@
   window.CONFIG = {
     symbols: ['XAUUSD'],        // เช่น ['XAUUSD','EURUSD','BTCUSD']
     source: 'binance',          // 'binance' | 'fastapi' (ค่าเริ่มต้นครั้งแรก ผู้ใช้สลับได้ในเมนูสถานะ)
-    apiBase: '',                // ว่าง = ใช้เครื่องเดียวกับหน้าเว็บ (เมื่อเปิดจาก localhost) หรือ http://localhost:8000
+    apiBase: 'http://141.11.33.121:8000',                // ว่าง = ใช้เครื่องเดียวกับหน้าเว็บ (เมื่อเปิดจาก localhost) หรือ http://localhost:8000
     refreshMin: 15
   };
 </script>
-<script src="app.js" defer></script>
+<script src="app.js?v=2"></script>
 </head>
 <body>
 
@@ -159,26 +159,6 @@
         </div>
       </div>
     </section>
-
-    <!-- สมุดเทรด (GET /api/journal) -->
-    <section id="v-journal" hidden>
-      <div class="page">
-        <div class="page-head">
-          <div><div class="kicker" id="j-src"></div><h1>สมุดเทรด</h1></div>
-          <div style="display:flex;align-items:center;gap:12px">
-            <span class="muted sm" id="j-last"></span>
-            <button class="btn" id="j-reload" data-act="j-reload"></button>
-          </div>
-        </div>
-        <div id="j-body"></div>
-      </div>
-    </section>
-
-    <!-- ตั้งค่า -->
-    <section id="v-settings" hidden></section>
-
-    <!-- คำนวณความเสี่ยง -->
-    <section id="v-risk" hidden></section>
 
     <!-- ยังไม่ทำ -->
     <section id="v-soon" hidden></section>

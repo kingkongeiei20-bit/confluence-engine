@@ -31,46 +31,38 @@ def generate_signal(symbol: str, dt: datetime, tech: TechScore, eso_mode: str = 
     conflicts = list(tech.conflicts)
 
     # ==========================================
-    # 🌟 SUPER FILTER (ผลลัพธ์จาก Backtest)
+    # 🌟 SUPER FILTER v2.0 (ผ่อนปรนเงื่อนไขให้เทรดง่ายขึ้น)
+    # - ลด Threshold จาก 35 เหลือ 25
+    # - เปิดให้เทรดได้ทั้ง Long และ Short
+    # - ไม่ห้าม Session NY
     # ==========================================
     
-    # กฎที่ 1: ห้ามเทรดช่วง New York (ตลาดเหวี่ยงเกินไป)
-    if tech.session == "ny":
-        return Signal(
-            symbol=symbol, timestamp=dt.isoformat(), grade="C", 
-            composite_score=0.0, state="NO_CONVICTION", 
-            tech=tech, eso=eso_score, suggested_lot=0.0
-        )
-
-    # กฎที่ 2: ห้ามเทรดฝั่ง Long (จากผลทดสอบฝั่ง Long ขาดทุนหนัก)
-    if tech.score >= 35.0:
-        return Signal(
-            symbol=symbol, timestamp=dt.isoformat(), grade="C", 
-            composite_score=0.0, state="NO_CONVICTION", 
-            tech=tech, eso=eso_score, suggested_lot=0.0
-        )
-
-    # กฎที่ 3: เทรดเฉพาะฝั่ง Short และต้องเป็น Grade B เท่านั้น
-    elif tech.score <= -35.0:
-        # เช็คเงื่อนไข Trap Warning ก่อน
-        if eso_score.score > 20.0:
+    if tech.score >= 25.0: # ฝั่ง Long
+        if eso_score.score < -20.0: # ถ้าฤกษ์แย่มาก ให้เป็น Trap
+            state = "DIVERGENCE_WARNING"
+            grade = "D"
+            composite *= 0.5
+            eso_score.trap_warning = True
+            conflicts.append("Trap Warning: Tech bullish but Eso bearish")
+        else:
+            state = "FULL_CONFLUENCE"
+            grade = "A" if abs(composite) >= 20 else "B"
+            
+    elif tech.score <= -25.0: # ฝั่ง Short
+        if eso_score.score > 20.0: # ถ้าฤกษ์ดีมาก ให้เป็น Trap
             state = "DIVERGENCE_WARNING"
             grade = "D"
             composite *= 0.5
             eso_score.trap_warning = True
             conflicts.append("Trap Warning: Tech bearish but Eso bullish")
         else:
-            # ถ้าไม่ติด Trap ให้เป็น Grade B (ตัด Grade A ออกตามผล Backtest)
             state = "FULL_CONFLUENCE"
-            grade = "B"
+            grade = "A" if abs(composite) >= 20 else "B"
             
-    # กฎที่ 4: ถ้าคะแนน Tech ไม่ชัดเจน ให้เป็น Neutral
     else:
         state = "NO_CONVICTION"
         grade = "C"
         composite = 0.0
-        
-    # ==========================================
 
     return Signal(
         symbol=symbol, timestamp=dt.isoformat(), grade=grade,

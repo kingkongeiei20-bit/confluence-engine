@@ -194,21 +194,16 @@ def cron_predict():
         
         current_price = float(df['close'].iloc[-1])
         atr_val = latest_window['close'].diff().abs().rolling(14).mean().iloc[-1]
-        if pd.isna(atr_val) or atr_val == 0: return {"status": "skipped", "message": "ATR is zero"}
+        if pd.isna(atr_val) or atr_val == 0: 
+            return {"status": "skipped", "message": "ATR is zero"}
 
-        is_shadow = False
-        reject_reason = ""
-        direction = "long" if tech.score > 0 else "short"
-
-        if tech.session == "ny":
-            is_shadow, reject_reason = True, "Session NY (Filtered)"
-        elif direction == "long":
-            is_shadow, reject_reason = True, "Long Signal (Filtered)"
-        elif signal.grade == "A":
-            is_shadow, reject_reason = True, "Grade A (Filtered)"
-        elif signal.grade not in ["A", "B"] or signal.state != "FULL_CONFLUENCE":
+        # 🌟 SUPER FILTER v2.0: ไม่มีการบันทึกเป็น Shadow แล้ว
+        # รับเฉพาะสัญญาณที่ผ่าน (Grade A หรือ B และ State ต้องเป็น FULL_CONFLUENCE)
+        if signal.grade not in ["A", "B"] or signal.state != "FULL_CONFLUENCE":
             return {"status": "neutral", "message": "No valid signal", "score": tech.score}
 
+        direction = "long" if tech.score > 0 else "short"
+        
         if direction == "long":
             sl, tp = current_price - (1.5 * atr_val), current_price + (3.0 * atr_val)
         else:
@@ -227,31 +222,30 @@ def cron_predict():
             "r_multiple": 0.0,
             "mfe_r": 0.0,
             "mae_r": 0.0,
-            "is_shadow": is_shadow,
-            "reject_reason": reject_reason,
-            "strategy_version": "v1.0_super_filter",
+            "is_shadow": False, # ยกเลิก Shadow แล้ว บังคับเป็น False
+            "reject_reason": "",
+            "strategy_version": "v2.0_loose_filter",
             "tech_score": tech.score,
             "eso_score": signal.eso.score
         }
         
-        doc_ref = db.collection("trade_journal").add(trade_data)
+        db.collection("trade_journal").add(trade_data)
         
-        if not is_shadow:
-            alert_msg = (
-                f"🚨 <b>พบสัญญาณเทรดใหม่!</b>\n\n"
-                f"🪙 <b>{symbol}</b> ({direction.upper()}) | เกรด {signal.grade}\n"
-                f"💰 Entry: {current_price:.2f}\n"
-                f"🛑 SL: {sl:.2f}\n"
-                f"🎯 TP: {tp:.2f}\n"
-                f"📊 Tech Score: {tech.score:.1f}"
-            )
-            send_telegram_alert(alert_msg)
+        # ส่ง Telegram แจ้งเตือนทุกไม้ที่ผ่านเงื่อนไข
+        alert_msg = (
+            f"🚨 <b>สัญญาณเทรดใหม่!</b>\n\n"
+            f"🪙 <b>XAUUSD</b> ({direction.upper()}) | เกรด {signal.grade}\n"
+            f"💰 Entry: {current_price:.2f}\n"
+            f"🛑 SL: {sl:.2f}\n"
+            f"🎯 TP: {tp:.2f}\n"
+            f"📊 Tech Score: {tech.score:.1f}"
+        )
+        send_telegram_alert(alert_msg)
             
-        return {"status": "success", "message": "Saved", "data": trade_data}
+        return {"status": "success", "message": "Real Signal saved & Alert Sent", "data": trade_data}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/api/cron_check_outcome")
 def cron_check_outcome():

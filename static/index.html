@@ -8,7 +8,7 @@
 <script>(function(){try{var t=localStorage.getItem('cta-theme')||'system';var r=t==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;document.documentElement.setAttribute('data-theme',r);}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500;600&family=Noto+Sans+Thai:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=20261026-9">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js" defer></script>
 <script>
@@ -16,11 +16,11 @@
   window.CONFIG = {
     symbols: ['XAUUSD'],        // เช่น ['XAUUSD','EURUSD','BTCUSD']
     source: 'fastapi',          // 'binance' | 'fastapi' (ค่าเริ่มต้นครั้งแรก ผู้ใช้สลับได้ในเมนูสถานะ)
-    apiBase: 'http://141.11.33.121:8000',                // ว่าง = ใช้เครื่องเดียวกับหน้าเว็บ (เมื่อเปิดจาก localhost) หรือ http://localhost:8000
+    apiBase: 'http://141.11.33.121:8000',   // VPS · ว่าง = เครื่องเดียวกับหน้าเว็บ
     refreshMin: 15
   };
 </script>
-<script src="app.js?v=3" defer></script>
+<script src="app.js?v=20261026-9" defer></script>
 </head>
 <body>
 
@@ -55,7 +55,7 @@
     <section id="v-dash" hidden>
       <div class="page">
         <div class="page-head">
-          <div><div class="kicker" id="today"></div><h1>ฟีดสัญญาณ</h1></div>
+          <div><div class="kicker" id="today"></div><h1>แดชบอร์ด</h1></div>
           <span class="muted sm" id="dash-last"></span>
         </div>
         <div id="stale"></div>
@@ -69,6 +69,7 @@
             </div>
             <span class="num" style="font-size:28px" id="chart-price">—</span>
             <span class="muted xs" id="chart-time"></span>
+            <span class="tag" id="chart-atr" hidden></span>
             <div class="grow"></div>
             <div class="legend">
               <span><i style="border-color:var(--acc)"></i>เข้า</span>
@@ -76,6 +77,7 @@
               <span><i style="border-color:var(--bull)"></i>TP</span>
               <span><i style="border-color:var(--t2);border-top-style:dashed"></i>แนวรับ/ต้าน</span>
             </div>
+            <button class="btn btn-ghost" id="marks-btn" data-act="marks" role="switch" aria-checked="true" style="height:30px;padding:0 8px;font-size:13px"></button>
             <button class="btn btn-ghost btn-icon" id="freeze-btn" data-act="freeze" aria-label="ฟรีซกราฟไปวาด" title="ฟรีซกราฟ · ไปวาดในสมุดวาดกราฟ"></button>
             <div class="seg" id="tf-group" role="group" aria-label="กรอบเวลา"></div>
           </div>
@@ -106,6 +108,9 @@
     <!-- รายละเอียดสัญญาณ -->
     <section id="v-detail" hidden></section>
 
+    <!-- ห้องเทคนิค -->
+    <section id="v-tech" hidden></section>
+
     <!-- ห้องโหร -->
     <section id="v-oracle" hidden>
       <canvas id="stars" aria-hidden="true"></canvas>
@@ -128,7 +133,7 @@
           <div class="state-box center" style="margin:0 auto">
             <div id="sk-empty-ic" style="width:44px;height:44px;border:1px solid var(--bd-x);display:grid;place-items:center;color:var(--acc)"></div>
             <div style="font:600 24px var(--font-heading)">ยังไม่มีกราฟที่ฟรีซไว้</div>
-            <div class="muted" style="font-size:14px;max-width:420px">กดปุ่ม ❄ ที่หัวกราฟในหน้าฟีดสัญญาณ ระบบจะเก็บภาพกราฟ ณ ตอนนั้นมาให้วาดเขียนที่นี่</div>
+            <div class="muted" style="font-size:14px;max-width:420px">กดปุ่ม ❄ ที่หัวกราฟในหน้าแดชบอร์ด ระบบจะเก็บภาพกราฟ ณ ตอนนั้นมาให้วาดเขียนที่นี่</div>
             <button class="btn" data-act="go:dash">ไปที่กราฟ</button>
           </div>
         </div>
@@ -167,6 +172,7 @@
           <div><div class="kicker" id="j-src"></div><h1>สมุดเทรด</h1></div>
           <div style="display:flex;align-items:center;gap:12px">
             <span class="muted sm" id="j-last"></span>
+            <a class="btn" id="j-csv" href="#" download target="_blank" rel="noopener"></a>
             <button class="btn" id="j-reload" data-act="j-reload"></button>
           </div>
         </div>
